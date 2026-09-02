@@ -184,8 +184,22 @@ public:
     // We'll cover the concept when we get here — don't implement yet.
     // ------------------------------------------------------------------
     static BigNum add_magnitude_small(const BigNum& a, uint32_t v) {
-        // TODO: implement
-        return BigNum(0);
+        BigNum r = a;
+        uint32_t carry = v;
+        
+        int n = a.limbs.size();
+
+        for(int i = 0 ; i < n ; i++){
+            uint64_t sum = (uint64_t)r.limbs[i] + carry;
+            r.limbs[i] = (sum & 0xFFFFFFFF);
+            carry = sum >> 32;
+        }   
+
+        r.limbs.push_back(carry);
+
+        r.negative = a.negative;
+        r.trim();
+        return r;
     }
 
     // ------------------------------------------------------------------
@@ -194,7 +208,14 @@ public:
     // ------------------------------------------------------------------
     static BigNum from_decimal(const std::string& s) {
         // TODO: implement
-        return BigNum(0);
+        BigNum r;
+    
+        for(int i = 0 ; i < s.length() ; i++){
+            r = mul_small(r ,10);
+            r = add_magnitude_small(r , s[i] - '0');
+        }
+
+        return r;
     }
 
     // ------------------------------------------------------------------
