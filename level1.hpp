@@ -225,6 +225,8 @@ public:
     static BigNum divmod_small(const BigNum& a, uint32_t d, uint32_t& remainder) {
         // TODO: implement
         remainder = 0;
+        
+
         return BigNum(0);
     }
 
