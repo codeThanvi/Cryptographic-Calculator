@@ -5,16 +5,7 @@
 #include <stdexcept>
 #include <algorithm>
 
-// ============================================================================
-// BigNum — arbitrary precision integer, base 2^32, little-endian limbs,
-// sign-magnitude.
-//
-// DONE (yours, verified working): trim, cmp_mag, add_mag, sub_mag
-// NEXT UP: mul_small — implement this one first. The others below it
-// (add_magnitude_small, from_decimal, divmod_small, to_decimal) are left
-// as TODO stubs too, but we'll work through the concept behind each one
-// before you write it — don't jump ahead to them yet.
-// ============================================================================
+
 
 class BigNum {
 public:
@@ -31,7 +22,6 @@ public:
         trim();
     }
 
-    // ---- DONE (yours) --------------------------------------------------
     void trim() {
         while(limbs.size() > 1 && limbs.back() == 0)limbs.pop_back();
         if(limbs.size() == 1 && limbs[0] == 0)negative = 0;
@@ -137,32 +127,11 @@ public:
     }
 
     friend bool operator<(const BigNum& a, const BigNum& b)  { return cmp(a, b) < 0; }
+    friend bool operator<=(const BigNum &a , const BigNum &b){return cmp(a,b) <= 0; }
     friend bool operator==(const BigNum& a, const BigNum& b) { return cmp(a, b) == 0; }
     friend bool operator>=(const BigNum& a, const BigNum& b) { return cmp(a, b) >= 0; }
 
-    // ------------------------------------------------------------------
-    // TODO (up next): mul_small(a, m)
-    // Multiply a whole BigNum `a` by a single scalar `m` (a uint32_t).
-    // Same shape as add_mag's loop, but each step is a MULTIPLY-with-carry
-    // instead of an add-with-carry:
-    //
-    //   carry = 0
-    //   for each limb L in a.limbs:
-    //       product = (uint64_t)L * m + carry     // widen L to 64-bit FIRST
-    //       push (product & 0xFFFFFFFF) as the next result limb
-    //       carry = product >> 32
-    //   IMPORTANT: unlike add_mag, carry here can be a large number (up to
-    //   nearly 2^32), not just 0 or 1 — because L * m can be almost as big
-    //   as 2^64. So after the loop, you can't just push one leftover limb;
-    //   you need a `while (carry) { push low 32 bits; carry >>= 32; }` to
-    //   peel off however many extra limbs the leftover carry needs.
-    //
-    // Return a BigNum (not just a vector) — set r.negative = a.negative,
-    // and call r.trim() before returning (handles the case m == 0, and
-    // strips any accidental leading zero limb).
-    // ------------------------------------------------------------------
     static BigNum mul_small(const BigNum& a, uint32_t m) {
-        // TODO: implement
         BigNum r;
         r.limbs.pop_back();
         uint64_t carry = 0;
@@ -175,67 +144,112 @@ public:
         r.limbs.push_back(carry);
         r.negative = a.negative;
         r.trim();
-
         return r;
     }
 
-    // ------------------------------------------------------------------
-    // TODO (later): add_magnitude_small(a, v)
-    // We'll cover the concept when we get here — don't implement yet.
-    // ------------------------------------------------------------------
     static BigNum add_magnitude_small(const BigNum& a, uint32_t v) {
         BigNum r = a;
         uint32_t carry = v;
-        
         int n = a.limbs.size();
-
         for(int i = 0 ; i < n ; i++){
             uint64_t sum = (uint64_t)r.limbs[i] + carry;
             r.limbs[i] = (sum & 0xFFFFFFFF);
             carry = sum >> 32;
-        }   
-
+        }
         r.limbs.push_back(carry);
-
         r.negative = a.negative;
         r.trim();
         return r;
     }
 
-    // ------------------------------------------------------------------
-    // TODO (later): from_decimal(s)
-    // We'll cover the concept when we get here — don't implement yet.
-    // ------------------------------------------------------------------
     static BigNum from_decimal(const std::string& s) {
-        // TODO: implement
         BigNum r;
-    
-        for(int i = 0 ; i < s.length() ; i++){
+        for(int i = 0 ; i < (int)s.length() ; i++){
             r = mul_small(r ,10);
             r = add_magnitude_small(r , s[i] - '0');
         }
-
         return r;
     }
 
-    // ------------------------------------------------------------------
-    // TODO (later): divmod_small(a, d, remainder)
-    // We'll cover the concept when we get here — don't implement yet.
-    // ------------------------------------------------------------------
     static BigNum divmod_small(const BigNum& a, uint32_t d, uint32_t& remainder) {
-        // TODO: implement
+        BigNum q;
+        q.limbs.resize(a.limbs.size());
         remainder = 0;
-        
-
-        return BigNum(0);
+        int n = a.limbs.size();
+        for(int i = n - 1 ; i>=0 ; i--){
+            uint64_t current = (uint64_t)remainder << 32 | a.limbs[i];
+            q.limbs[i] = current/d;
+            remainder = current % d;
+        }
+        q.trim();
+        return q;
     }
 
-    // ------------------------------------------------------------------
-    // TODO (later): to_decimal()
-    // We'll cover the concept when we get here — don't implement yet.
-    // ------------------------------------------------------------------
     std::string to_decimal() const {
-        // TODO: implement
-        return "";
+        if(this->is_zero())return "0";
+        std :: string s = "";
+        BigNum curr = *this;
+        uint32_t remainder = 0;
+        while(!curr.is_zero()){
+              curr = divmod_small(curr,10,remainder);
+              s += '0' + remainder;
+        }
+        std :: reverse(s.begin() , s.end());
+        if(this->negative)s.insert(0,"-");
+        return s;
     }
+
+    static std::vector<uint32_t> mul_mag(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
+        std :: vector<u_int32_t> result;
+        BigNum temp;
+        temp.limbs = a;
+        temp.negative = false;
+
+        for(int i = 0 ; i < b.size(); i++){
+            BigNum res = mul_small(temp,b[i]);
+            res.limbs.insert(res.limbs.begin(), i, 0u);
+            result = add_mag(res.limbs,result);
+        }
+
+        return result;
+    }
+
+    friend BigNum operator*(const BigNum& a, const BigNum& b) {
+        BigNum r;
+        r.limbs = mul_mag(a.limbs, b.limbs);
+        r.negative = (a.negative != b.negative);
+        r.trim();
+        return r;
+    }
+
+
+    static BigNum divmod_mag(const BigNum &a , const BigNum &b , BigNum &Remainder){
+        Remainder = 0;
+        BigNum q = 0;
+        q.limbs.resize(a.limbs.size());
+        BigNum temp = a;
+
+
+
+
+
+        for(int i = a.limbs.size() - 1 ; i >= 0 ; i--){
+              Remainder.limbs.insert(Remainder.limbs.begin(), 1 , 0u);
+              Remainder = Remainder + a.limbs[i];
+              uint32_t low = 0;
+              uint32_t high = UINT32_MAX;
+              while(low < high){
+              uint32_t mid = (uint64_t)low + ((uint64_t)high - low + 1)/2;
+              if(mul_small(b,mid) <= Remainder)low = mid;
+              else high = mid - 1;
+        }
+        q.limbs[i] = low;
+        Remainder = Remainder - mul_small(b,low);
+    }
+        q.trim();
+        return q;
+
+    }
+
+
 };
