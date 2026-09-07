@@ -165,9 +165,14 @@ public:
     static BigNum from_decimal(const std::string& s) {
         BigNum r;
         for(int i = 0 ; i < (int)s.length() ; i++){
+            if(i == 0 && s[i] == '-')continue;
             r = mul_small(r ,10);
             r = add_magnitude_small(r , s[i] - '0');
         }
+
+        if(s[0] == '-')r.negative = true;
+        r.trim();
+
         return r;
     }
 
@@ -246,10 +251,48 @@ public:
         q.limbs[i] = low;
         Remainder = Remainder - mul_small(b,low);
     }
+        q.negative = (a.negative != b.negative);
         q.trim();
         return q;
 
     }
+
+
+    friend BigNum operator/(const BigNum& a, const BigNum& b) {
+        BigNum remainder;
+        BigNum q = divmod_mag(a, b, remainder);
+        q.negative = (a.negative != b.negative);
+        q.trim();
+        return q;
+    }
+ 
+    friend BigNum operator%(const BigNum& a, const BigNum& b) {
+        BigNum remainder;
+        divmod_mag(a, b, remainder);
+        remainder.negative = a.negative;
+        remainder.trim();
+        return remainder;
+    }
+
+
+
+
+    static BigNum Extended_gcd(const BigNum& a, const BigNum& b, BigNum &x , BigNum &y) {
+        if(b == 0){
+             x = 1;
+             y = 0;
+             return a;
+        }
+
+        BigNum x1 , y1;
+        BigNum d = Extended_gcd(b,a%b,x1,y1);
+        x = y1;
+        y = x1 - y1 * (a/b);
+
+        return d;
+
+    }
+
 
 
 };
