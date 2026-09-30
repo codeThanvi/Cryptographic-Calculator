@@ -14,14 +14,6 @@ public:
 
     BigNum() : limbs{0}, negative(false) {}
 
-    BigNum(int64_t v) {
-        negative = v < 0;
-        uint64_t mag = negative ? static_cast<uint64_t>(-(v + 1)) + 1 : static_cast<uint64_t>(v);
-        limbs.push_back(static_cast<uint32_t>(mag & 0xFFFFFFFFu));
-        limbs.push_back(static_cast<uint32_t>(mag >> 32));
-        trim();
-    }
-
     void trim() {
         while(limbs.size() > 1 && limbs.back() == 0)limbs.pop_back();
         if(limbs.size() == 1 && limbs[0] == 0)negative = 0;
@@ -225,35 +217,32 @@ public:
         return r;
     }
 
-
     static BigNum divmod_mag(const BigNum &a , const BigNum &b , BigNum &Remainder){
-        Remainder = 0;
-        BigNum q = 0;
+        Remainder = BigNum();
+        BigNum q;
         q.limbs.resize(a.limbs.size());
+        BigNum b_mag = b;
+        b_mag.negative = false;
 
         for(int i = (int)a.limbs.size() - 1 ; i >= 0 ; i--){
               Remainder.limbs.insert(Remainder.limbs.begin(), 1 , 0u);
-              Remainder = Remainder + a.limbs[i];
+              Remainder = add_magnitude_small(Remainder, a.limbs[i]);
               uint32_t low = 0;
               uint32_t high = UINT32_MAX;
               while(low < high){
               uint32_t mid = (uint64_t)low + ((uint64_t)high - low + 1)/2;
-              if(mul_small(b,mid) <= Remainder)low = mid;
+              if(mul_small(b_mag,mid) <= Remainder)low = mid;
               else high = mid - 1;
         }
         q.limbs[i] = low;
-        Remainder = Remainder - mul_small(b,low);
+        Remainder = Remainder - mul_small(b_mag,low);
     }
+        q.negative = (a.negative != b.negative);
         q.trim();
         return q;
 
     }
 
-    // GIVEN: operator/ and operator% dispatch to your divmod_mag, same
-    // pattern as operator+/operator-/operator* dispatch to add_mag/sub_mag/
-    // mul_mag. Sign convention: quotient sign follows the usual rule (signs
-    // differ -> negative), remainder takes the dividend's sign -- same
-    // convention C++'s own % uses for built-in integer types.
     friend BigNum operator/(const BigNum& a, const BigNum& b) {
         BigNum remainder;
         BigNum q = divmod_mag(a, b, remainder);
@@ -270,17 +259,15 @@ public:
         return remainder;
     }
 
-
     static BigNum gcd(const BigNum& a, const BigNum& b) {
-        if(b == 0) return a;
+        if(b.is_zero()) return a;
         else return gcd(b , a%b);
     }
 
-
     static BigNum Extended_gcd(const BigNum& a, const BigNum& b, BigNum &x , BigNum &y) {
-        if(b == 0){
-            x = 1;
-            y = 0;
+        if(b.is_zero()){
+            x = from_decimal("1");
+            y = BigNum();
             return a;
         }
         BigNum x1 , y1;
@@ -290,56 +277,59 @@ public:
         return d;
     }
 
-
     static BigNum modular_inverse(const BigNum &a , const BigNum &n){
+        BigNum n_mag = n; n_mag.negative = false; // modulus sign shouldn't affect the residue class
         BigNum x,y;
-        BigNum g = Extended_gcd(a,n,x,y);
+        BigNum g = Extended_gcd(a,n_mag,x,y);
         BigNum one = from_decimal("1");
 
         if(!(g == one)){
             throw std::invalid_argument("no modular inverse exists (gcd != 1)");
         }
 
-        x = ((x % n) + n) % n;
+        x = ((x % n_mag) + n_mag) % n_mag;
         return x;
     }
 
     static BigNum modular_add(const BigNum &a , const BigNum &b , const BigNum &m){
-        BigNum ra = ((a % m) + m) % m;
-        BigNum rb = ((b % m) + m) % m;
-        return (ra + rb) % m;
+        BigNum m_mag = m; m_mag.negative = false;
+        BigNum ra = ((a % m_mag) + m_mag) % m_mag;
+        BigNum rb = ((b % m_mag) + m_mag) % m_mag;
+        return (ra + rb) % m_mag;
     }
 
     static BigNum modular_mul(const BigNum &a , const BigNum &b , const BigNum &m){
-        BigNum ra = ((a % m) + m) % m;
-        BigNum rb = ((b % m) + m) % m;
-        return (ra * rb) % m;
+        BigNum m_mag = m; m_mag.negative = false;
+        BigNum ra = ((a % m_mag) + m_mag) % m_mag;
+        BigNum rb = ((b % m_mag) + m_mag) % m_mag;
+        return (ra * rb) % m_mag;
     }
 
-
     static BigNum mod_pow_naive(const BigNum &base , const BigNum &exp , const BigNum &m){
-        BigNum result = from_decimal("1") % m;
-        BigNum b = ((base % m) + m) % m;
+        BigNum m_mag = m; m_mag.negative = false;
+        BigNum result = from_decimal("1") % m_mag;
+        BigNum b = ((base % m_mag) + m_mag) % m_mag;
         BigNum e = exp;
         BigNum one = from_decimal("1");
-        while (e >= one && !(e == BigNum(0))) {
-            result = modular_mul(result, b, m);
+        while (e >= one) {
+            result = modular_mul(result, b, m_mag);
             e = e - one;
         }
         return result;
     }
 
     static BigNum mod_pow_fast(const BigNum &base , const BigNum &exp , const BigNum &m){
-        BigNum result = from_decimal("1") % m;
-        BigNum b = ((base % m) + m) % m;
+        BigNum m_mag = m; m_mag.negative = false;
+        BigNum result = from_decimal("1") % m_mag;
+        BigNum b = ((base % m_mag) + m_mag) % m_mag;
         BigNum e = exp;
         while (!e.is_zero()) {
             uint32_t bit;
             e = divmod_small(e, 2, bit);
             if (bit == 1) {
-                result = modular_mul(result, b, m);
+                result = modular_mul(result, b, m_mag);
             }
-            b = modular_mul(b, b, m);
+            b = modular_mul(b, b, m_mag);
         }
         return result;
     }
