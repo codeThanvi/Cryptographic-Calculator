@@ -14,13 +14,13 @@ public:
 
     BigNum() : limbs{0}, negative(false) {}
 
-    BigNum(int64_t v) {
-        negative = v < 0;
-        uint64_t mag = negative ? static_cast<uint64_t>(-(v + 1)) + 1 : static_cast<uint64_t>(v);
-        limbs.push_back(static_cast<uint32_t>(mag & 0xFFFFFFFFu));
-        limbs.push_back(static_cast<uint32_t>(mag >> 32));
-        trim();
-    }
+    // BigNum(int64_t v) {
+    //     negative = v < 0;
+    //     uint64_t mag = negative ? static_cast<uint64_t>(-(v + 1)) + 1 : static_cast<uint64_t>(v);
+    //     limbs.push_back(static_cast<uint32_t>(mag & 0xFFFFFFFFu));
+    //     limbs.push_back(static_cast<uint32_t>(mag >> 32));
+    //     trim();
+    // }
 
     void trim() {
         while(limbs.size() > 1 && limbs.back() == 0)limbs.pop_back();
@@ -350,3 +350,5 @@ public:
     }
 
 };
+
+// if A = 23472618462819644234219748912704 and B = 423142674690348721947892478 what is A mod B
